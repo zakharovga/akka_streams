@@ -5,6 +5,11 @@ import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.scaladsl._
 
+import scala.concurrent.Future
+
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
 /**
   * Created by gosha on 12/25/16.
   */
@@ -23,18 +28,37 @@ object Main extends App {
   implicit val system = ActorSystem("reactive-tweets")
   implicit val materializer = ActorMaterializer()
 
+
+
   val tweets = Source(List(
     Tweet(Author("John"), 1000, "#TAG2 #TAG3 #TAG4 #TAG5"),
     Tweet(Author("James"), 2000, "#TAG6 #akka #TAG7 #TAG8"),
     Tweet(Author("Bob"), 3000, "#Body bodybody #TAG12"),
     Tweet(Author("Tom"), 4000, "#TAG9 #akka #TAG10 #TAG811")))
 
-  val authors: Source[Author, NotUsed] =
-    tweets
-      .filter(_.hashtags.contains(akkaTag))
-      .map(_.author)
+  val count: Flow[Tweet, Int, NotUsed] = Flow[Tweet].map(_ => 1)
 
-  authors.runWith(Sink.foreach(println))
+  val sumSink: Sink[Int, Future[Int]] = Sink.fold[Int, Int](0)(_ + _)
+
+  val counterGraph: RunnableGraph[Future[Int]] =
+    tweets
+      .via(count)
+      .toMat(sumSink)(Keep.right)
+
+  val sum: Future[Int] = counterGraph.run()
+
+  sum.foreach(c => println(s"Total tweets processed: $c"))
+
+
+
+//  val authors: Source[Author, NotUsed] =
+//    tweets
+//      .filter(_.hashtags.contains(akkaTag))
+//      .map(_.author)
+//
+//  authors.runWith(Sink.foreach(println))
+
+
 
 
   val writeAuthors = Sink.foreach[Author](println)
